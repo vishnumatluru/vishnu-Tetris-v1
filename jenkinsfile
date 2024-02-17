@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+    tools{
+        jdk 'jdk'
+        nodejs 'nodejs'
+        }
+       
+    stages {
+        stage('clean workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage('git checkout') {
+            steps {
+                git 'https://github.com/vishnumatluru/vishnu-Tetris-v1.git' 
+            }
+        }
+        
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+  
+        stage('build') {
+            steps {
+               sh 'docker build -t  tetrisv1 .'
+            }
+        }
+         
+          stage('trivy-image-scan') {
+            steps {
+               sh 'trivy image tetrisv1'
+            }
+        }
+        stage('dockerhub push') {
+            steps {
+                  script {
+              withDockerRegistry(credentialsId: 'Docker', toolName: 'Docker') {
+                      sh '''
+                        docker tag tetrisv1 vishnumatluru/tetrisv1:latest
+                        docker push vishnumatluru/tetrisv1:latest
+                      '''
+                  }                
+                }
+            }
+        
+        }
+         
+         stage('git clone') {
+            steps {
+               git 'https://github.com/vishnumatluru/vishnu-manifest.git'
+            }
+        }
+         stage('Deploy node to k8') {
+            steps {
+               sh 'aws eks update-kubeconfig --name EKS_CLOUD_VISHNU --region eu-west-2'
+               sh 'kubectl get ns'
+               sh 'kubectl apply -f deployment.yml'
+              
+            }
+        }
+        
+        
+           
+          
+     }
+}
